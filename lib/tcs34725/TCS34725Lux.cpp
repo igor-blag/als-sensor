@@ -53,10 +53,43 @@ int32_t TCS34725Lux::readLightLevel() {
     // Check for saturation or zero (sensor error)
     if (c == 0) return -1;
 
+    // Cache raw values for subsequent getColorTemperature() call
+    lastR = r; lastG = g; lastB = b; lastC = c;
+
     float lux = calculateLux(r, g, b, c);
 
     // Clamp to 16-bit range (HID report uses 0-65535)
     if (lux > 65535.0f) lux = 65535.0f;
 
     return (int32_t)lux;
+}
+
+float TCS34725Lux::calculateCCT(uint16_t r, uint16_t g, uint16_t b) {
+    // McCamy's approximation via CIE chromaticity coordinates
+    // Convert RGB to CIE XYZ (simplified matrix for TCS34725)
+    float X = -0.14282f * r + 1.54924f * g + -0.95641f * b;
+    float Y = -0.32466f * r + 1.57837f * g + -0.73191f * b;
+    float Z = -0.68202f * r + 0.77073f * g +  0.56332f * b;
+
+    float sum = X + Y + Z;
+    if (sum < 1.0f) return -1.0f;
+
+    // CIE chromaticity
+    float x = X / sum;
+    float y = Y / sum;
+
+    // McCamy's formula: CCT = 449*n^3 + 3525*n^2 + 6823.3*n + 5520.33
+    float n = (x - 0.3320f) / (0.1858f - y);
+    float cct = 449.0f * n * n * n + 3525.0f * n * n + 6823.3f * n + 5520.33f;
+
+    return cct;
+}
+
+int32_t TCS34725Lux::getColorTemperature() {
+    if (!initialized || lastC == 0) return -1;
+
+    float cct = calculateCCT(lastR, lastG, lastB);
+    if (cct < 1000.0f || cct > 12000.0f) return -1;
+
+    return (int32_t)cct;
 }

@@ -178,12 +178,21 @@ PROGMEM const uchar usbHidReportDescriptor[USB_CFG_HID_REPORT_DESCRIPTOR_LENGTH]
   HID_USAGE_SENSOR_EVENT_CHANGE_SENSITIVITY_SEL,
   HID_INPUT(Data_Arr_Abs),
   HID_END_COLLECTION,
-  // Sensor data
+  // Sensor data - illuminance
   HID_USAGE_SENSOR_DATA_LIGHT_ILLUMINANCE,
   HID_LOGICAL_MIN_8(0),
   HID_LOGICAL_MAX_32(0xFF,0xFF,0xFF,0xFF),
   HID_UNIT_EXPONENT(0x0F), // scale default unit to provide 1 digit past decimal point
   HID_REPORT_SIZE(32),
+  HID_REPORT_COUNT(1),
+  HID_INPUT(Data_Var_Abs),
+  // Sensor data - color temperature
+  HID_USAGE_SENSOR_DATA_LIGHT_COLOR_TEMPERATURE,
+  HID_LOGICAL_MIN_8(0),
+  HID_LOGICAL_MAX_16(0xFF,0xFF),
+  HID_UNIT_EXPONENT(0),
+  HID_USAGE_SENSOR_UNITS_KELVIN,
+  HID_REPORT_SIZE(16),
   HID_REPORT_COUNT(1),
   HID_INPUT(Data_Var_Abs),
 
@@ -226,7 +235,8 @@ struct __attribute__((packed)) {
   uint8_t eventType;    // HID_USAGE_SENSOR_EVENT
 
   // values specific to this sensor
-  uint32_t lightValue;  // HID_USAGE_SENSOR_TYPE_LIGHT_AMBIENTLIGHT
+  uint32_t lightValue;          // HID_USAGE_SENSOR_DATA_LIGHT_ILLUMINANCE
+  uint16_t colorTemperature;    // HID_USAGE_SENSOR_DATA_LIGHT_COLOR_TEMPERATURE
 
 } inputReportBuf = {
   //1,  // Report ID
@@ -234,6 +244,7 @@ struct __attribute__((packed)) {
   HID_USAGE_SENSOR_EVENT_POLL_RESPONSE_SEL_ENUM,
 
   0, /* lux */
+  0, /* color temperature (K) */
 };
 
 #if !defined(ARDUINO_ARCH_RP2040)
@@ -347,13 +358,17 @@ void loop() {
     int32_t lux = lightSensor.readLightLevel();
     if (lux >= 0) {
       inputReportBuf.lightValue = lux;
+      int32_t cct = lightSensor.getColorTemperature();
+      inputReportBuf.colorTemperature = (cct >= 0) ? (uint16_t)cct : 0;
       inputReportBuf.sensorState = HID_USAGE_SENSOR_STATE_READY_SEL_ENUM;
     } else {
       inputReportBuf.sensorState = HID_USAGE_SENSOR_STATE_ERROR_SEL_ENUM;
     }
 #if defined(ARDUINO_ARCH_RP2040)
     Serial.print("lux=");
-    Serial.println(lux);
+    Serial.print(lux);
+    Serial.print(" cct=");
+    Serial.println(inputReportBuf.colorTemperature);
 #endif
 #if defined(ARDUINO_ARCH_RP2040)
     if (TinyUSBDevice.mounted()) {
@@ -366,13 +381,16 @@ void loop() {
   }
 
 #if defined(ARDUINO_ARCH_RP2040)
-  // Periodic lux output every ~2 seconds (also used by als-brightness utility)
+  // Periodic debug output every ~2 seconds
   static uint16_t debugCounter = 0;
   if (++debugCounter >= 1000) {
     debugCounter = 0;
     int32_t dbgLux = lightSensor.readLightLevel();
+    int32_t dbgCct = lightSensor.getColorTemperature();
     Serial.print("lux=");
-    Serial.println(dbgLux);
+    Serial.print(dbgLux);
+    Serial.print(" cct=");
+    Serial.println(dbgCct);
   }
 #endif
 
