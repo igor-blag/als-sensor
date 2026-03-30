@@ -16,6 +16,7 @@ public:
     bool begin(TwoWire *wire = &Wire);
     int32_t readLightLevel();
     int32_t getColorTemperature();
+    bool getChromaticity(float &cx, float &cy);
 
 private:
     Adafruit_TCS34725 tcs = Adafruit_TCS34725(
@@ -23,9 +24,11 @@ private:
     bool initialized = false;
 
     uint16_t lastR = 0, lastG = 0, lastB = 0, lastC = 0;
+    float lastCieX = 0, lastCieY = 0;
+    bool lastCieValid = false;
 
     float calculateLux(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
-    float calculateCCT(uint16_t r, uint16_t g, uint16_t b);
+    bool calculateCIExy(uint16_t r, uint16_t g, uint16_t b);
 };
 
 #endif
